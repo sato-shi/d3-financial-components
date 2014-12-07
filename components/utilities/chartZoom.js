@@ -41,6 +41,7 @@
                     component.zoom(selection);
                 } else {
                     // Semantic Zoom
+                    // TODO: redraw needs to unset geom zoom transformation!
                     selection.call(component);
                 }
             });

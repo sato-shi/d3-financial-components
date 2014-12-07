@@ -11,3 +11,9 @@
   cursor: -webkit-grab;
   cursor: -moz-grab;
 }
+
+.brush .extent {
+  stroke: #fff;
+  fill-opacity: .125;
+  shape-rendering: crispEdges;
+}
