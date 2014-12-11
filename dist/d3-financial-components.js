@@ -187,6 +187,104 @@ window.fc = {
         return chartLayout;
     };
 }(d3, fc));
+(function (d3, fc) {
+    'use strict';
+
+    fc.utilities.chartZoom = function () {
+
+        var xScale = d3.time.scale(),
+            yScale = d3.scale.linear();
+
+        var width = 100,
+            height = 100;
+
+        var zoomBehavior = d3.behavior.zoom();
+        var components = [];
+
+        var chartZoom = function (selection) {
+            var zoomPane;
+
+            zoomBehavior.x(xScale);
+            selection.each(function () {
+                zoomPane = d3.select(this).selectAll('.zoom-pane').data([0]);
+                zoomPane.enter()
+                    .append('rect')
+                    .classed('zoom-pane', true);
+                zoomPane
+                    .attr({width: width, height: height});
+                zoomPane.call(zoomBehavior);
+
+            });
+        };
+
+        var zoom = function () {
+            var component, selection;
+            // Todo: Auto yScale domain update, error handling,
+            // similar functions for zoomstart and zoomend
+
+            components.forEach(function (pair) {
+                component = pair[0];
+                selection = pair[1];
+                if (component.zoom) {
+                    // Component implements geometric zoom.
+                    component.zoom(selection);
+                } else {
+                    // Semantic Zoom
+                    selection.call(component);
+                }
+            });
+        };
+
+        chartZoom.getZoomBehavior = function () {
+            return zoomBehavior;
+        };
+
+        chartZoom.components = function (value) {
+            if (!arguments.length) {
+                return components;
+            } else {
+                components = value;
+            }
+            return chartZoom;
+        };
+
+        chartZoom.xScale = function (value) {
+            if (!arguments.length) {
+                return xScale;
+            }
+            xScale = value;
+            return chartZoom;
+        };
+
+        chartZoom.yScale = function (value) {
+            if (!arguments.length) {
+                return yScale;
+            }
+            yScale = value;
+            return chartZoom;
+        };
+
+        chartZoom.width = function (value) {
+            if (!arguments.length) {
+                return width;
+            }
+            width = value;
+            return chartZoom;
+        };
+
+        chartZoom.height = function (value) {
+            if (!arguments.length) {
+                return height;
+            }
+            height = value;
+            return chartZoom;
+        };
+
+        zoomBehavior.on('zoom.chartZoomInternal', zoom);
+        return chartZoom;
+    };
+
+}(d3, fc));
 (function(fc) {
     'use strict';
 
@@ -553,20 +651,34 @@ window.fc = {
                     prunedData.push(data[n]);
                 }
 
-                var pathArea = d3.select(this).selectAll('.' + cssBandArea)
+                // add a 'root' g element on the first enter selection. This ensures
+                // that it is just added once
+                var container = d3.select(this).selectAll('.bollinger-series').data([data]);
+                container.enter()
+                    .append('g')
+                    .classed('bollinger-series', true);
+
+                // create a data-join for each element of the band
+                var pathArea = container
+                    .selectAll('.' + cssBandArea)
                     .data([prunedData]);
-                var pathUpper = d3.select(this).selectAll('.' + cssBandUpper)
+                var pathUpper = container
+                    .selectAll('.' + cssBandUpper)
                     .data([prunedData]);
-                var pathLower = d3.select(this).selectAll('.' + cssBandLower)
+                var pathLower = container
+                    .selectAll('.' + cssBandLower)
                     .data([prunedData]);
-                var pathAverage = d3.select(this).selectAll('.' + cssAverage)
+                var pathAverage = container
+                    .selectAll('.' + cssAverage)
                     .data([prunedData]);
 
+                // enter
                 pathArea.enter().append('path');
                 pathUpper.enter().append('path');
                 pathLower.enter().append('path');
                 pathAverage.enter().append('path');
 
+                // update
                 pathArea.attr('d', areaBands)
                     .classed(cssBandArea, true);
                 pathUpper.attr('d', lineUpper)
@@ -576,6 +688,7 @@ window.fc = {
                 pathAverage.attr('d', lineAverage)
                     .classed(cssAverage, true);
 
+                // exit
                 pathArea.exit().remove();
                 pathUpper.exit().remove();
                 pathLower.exit().remove();
@@ -720,15 +833,31 @@ window.fc = {
                     });
                 }
 
-                var path = d3.select(this).selectAll('.' + css)
+                // add a 'root' g element on the first enter selection. This ensures
+                // that it is just added once
+                var container = d3.select(this)
+                    .selectAll('.' + css)
+                    .data([data]);
+                container.enter()
+                    .append('g')
+                    .classed(css, true);
+
+                // create a data-join for the path
+                var path = container
+                    .selectAll('path')
                     .data([data]);
 
-                path.enter().append('path');
+                // enter
+                path.enter()
+                    .append('path');
 
+                // update
                 path.attr('d', line)
                     .classed(css, true);
 
-                path.exit().remove();
+                // exit
+                path.exit()
+                    .remove();
             });
         };
 
@@ -1576,6 +1705,97 @@ window.fc = {
 (function(d3, fc) {
     'use strict';
 
+    fc.series.bar = function() {
+
+        var xScale = d3.time.scale(),
+            yScale = d3.scale.linear(),
+            barWidth = 5,
+            yValue = fc.utilities.valueAccessor('volume'),
+            classForBar = function(d) { return ''; };
+
+        var bar = function(selection) {
+            var series, container;
+
+            selection.each(function(data) {
+
+                // add a 'root' g element on the first enter selection. This ensures
+                // that it is just added once
+                container = d3.select(this)
+                    .selectAll('.bar-series')
+                    .data([data]);
+                container.enter()
+                    .append('g')
+                    .classed('bar-series', true);
+
+                // create a data-join for each rect element
+                series = container
+                    .selectAll('rect')
+                    .data(data);
+
+                // enter
+                series.enter()
+                    .append('rect');
+
+                // exit
+                series.exit()
+                    .remove();
+
+                // update
+                series.attr('x', function(d) { return xScale(d.date) - (barWidth / 2.0); })
+                    .attr('y', function(d) { return yScale(yValue(d)); })
+                    .attr('width', barWidth)
+                    .attr('height', function(d) { return yScale(0) - yScale(yValue(d)); })
+                    .attr('class', classForBar);
+            });
+        };
+
+        bar.xScale = function(value) {
+            if (!arguments.length) {
+                return xScale;
+            }
+            xScale = value;
+            return bar;
+        };
+
+        bar.yScale = function(value) {
+            if (!arguments.length) {
+                return yScale;
+            }
+            yScale = value;
+            return bar;
+        };
+
+        bar.barWidth = function(value) {
+            if (!arguments.length) {
+                return barWidth;
+            }
+            barWidth = value;
+            return bar;
+        };
+
+        bar.yValue = function(value) {
+            if (!arguments.length) {
+                return yValue;
+            }
+            yValue = value;
+            return bar;
+        };
+
+        bar.classForBar = function(value) {
+            if (!arguments.length) {
+                return classForBar;
+            }
+            classForBar = value;
+            return bar;
+        };
+
+        return bar;
+    };
+}(d3, fc));
+
+(function(d3, fc) {
+    'use strict';
+
     fc.series.candlestick = function() {
 
         var xScale = d3.time.scale(),
@@ -1673,6 +1893,11 @@ window.fc = {
 
 
             });
+        };
+
+        candlestick.zoom = function(selection) {
+            selection.selectAll('.candlestick-series')
+                .attr('transform', 'translate(' + d3.event.translate[0] + ',0)scale(' + d3.event.scale + ',1)');
         };
 
         candlestick.xScale = function(value) {
@@ -1946,9 +2171,10 @@ window.fc = {
     fc.series.line = function() {
 
         var yValue = fc.utilities.valueAccessor('close'),
-            xScale = fc.scale.finance(),
+            xScale = fc.scale.dateTime(),
             yScale = fc.scale.linear(),
-            underFill = true;
+            underFill = true,
+            css = 'line-series';
 
         var line = function(selection) {
 
@@ -1965,25 +2191,50 @@ window.fc = {
 
             selection.each(function(data) {
 
+
+                // add a 'root' g element on the first enter selection. This ensures
+                // that it is just added once
+                var container = d3.select(this)
+                    .selectAll('.' + css)
+                    .data([data]);
+                container.enter()
+                    .append('g')
+                    .classed(css, true);
+
                 if (underFill) {
                     area.y1(function(d) { return yScale(yValue(d)); });
-                    var areapath = d3.select(this).selectAll('.lineSeriesArea')
+
+                    var areapath = container
+                        .selectAll('.area')
                         .data([data]);
+
+                    // enter
                     areapath.enter()
-                        .append('path')
-                        .attr('d', area)
-                        .classed('lineSeriesArea', true);
+                        .append('path');
+
+                    // update
+                    areapath.attr('d', area)
+                        .classed('area', true);
+
+                    // exit
                     areapath.exit()
                         .remove();
                 }
 
                 line.y(function(d) { return yScale(yValue(d)); });
-                var linepath = d3.select(this).selectAll('.lineSeries')
+                var linepath = container
+                    .selectAll('.line')
                     .data([data]);
+
+                // enter
                 linepath.enter()
-                    .append('path')
-                    .attr('d', line)
-                    .classed('lineSeries', true);
+                    .append('path');
+
+                // update
+                linepath.attr('d', line)
+                    .classed('line', true);
+
+                // exit
                 linepath.exit()
                     .remove();
             });
@@ -2274,101 +2525,6 @@ window.fc = {
         return ohlc;
     };
 }(d3, fc));
-(function(d3, fc) {
-    'use strict';
-
-    fc.series.volume = function() {
-
-        var xScale = d3.time.scale(),
-            yScale = d3.scale.linear(),
-            barWidth = 5,
-            yValue = fc.utilities.valueAccessor('volume');
-
-        var isUpDay = function(d) {
-            return d.close > d.open;
-        };
-        var isDownDay = function(d) {
-            return !isUpDay(d);
-        };
-
-        var rectangles = function(bars) {
-            var rect;
-
-            rect = bars.selectAll('rect').data(function(d) {
-                return [d];
-            });
-
-            rect.enter().append('rect');
-
-            rect.attr('x', function(d) { return xScale(d.date) - (barWidth / 2.0); })
-                .attr('y', function(d) { return yScale(yValue(d)); })
-                .attr('width', barWidth)
-                .attr('height', function(d) { return yScale(0) - yScale(yValue(d)); });
-        };
-
-        var volume = function(selection) {
-            var series, bars;
-
-            selection.each(function(data) {
-                series = d3.select(this).selectAll('.volume-series').data([data]);
-
-                series.enter().append('g')
-                    .classed('volume-series', true);
-
-                bars = series.selectAll('.volumebar')
-                    .data(data, function(d) {
-                        return d.date;
-                    });
-
-                bars.enter()
-                    .append('g')
-                    .classed('volumebar', true);
-
-                bars.classed({
-                    'up-day': isUpDay,
-                    'down-day': isDownDay
-                });
-                rectangles(bars);
-                bars.exit().remove();
-            });
-        };
-
-        volume.xScale = function(value) {
-            if (!arguments.length) {
-                return xScale;
-            }
-            xScale = value;
-            return volume;
-        };
-
-        volume.yScale = function(value) {
-            if (!arguments.length) {
-                return yScale;
-            }
-            yScale = value;
-            return volume;
-        };
-
-        volume.barWidth = function(value) {
-            if (!arguments.length) {
-                return barWidth;
-            }
-            barWidth = value;
-            return volume;
-        };
-
-        volume.yValue = function(value) {
-            if (!arguments.length) {
-                return yValue;
-            }
-            yValue = value;
-            return volume;
-        };
-
-        return volume;
-    };
-}(d3, fc));
-
 (function(d3, fc) {
     'use strict';
 
